@@ -1,0 +1,10 @@
+# CMake build output (includes the downloaded raylib sources)
+build/
+
+# VS Code per-user state
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+
+# Claude Code
+.claude/
