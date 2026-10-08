@@ -8,6 +8,22 @@ constexpr float PADDLE_H = 16.0f;
 constexpr float PADDLE_Y = SCREEN_H - 40.0f;
 constexpr float PADDLE_SPEED = 500.0f; // pixels per second
 
+constexpr float BALL_RADIUS = 8.0f;
+
+struct Ball
+{
+    Vector2 pos; // center
+    Vector2 vel; // pixels per second
+    float radius;
+};
+
+// A fresh ball in the middle of the screen, heading up and to the right
+Ball MakeBall()
+{
+    Ball ball = {{SCREEN_W / 2.0f, SCREEN_H / 2.0f}, {200.0f, -300.0f}, BALL_RADIUS};
+    return ball;
+}
+
 int main()
 {
     // --- load (Love2D: love.load) ---
@@ -16,6 +32,7 @@ int main()
 
     // x, y, width, height (x/y is the top-left corner)
     Rectangle paddle = {(SCREEN_W - PADDLE_W) / 2.0f, PADDLE_Y, PADDLE_W, PADDLE_H};
+    Ball ball = MakeBall();
 
     while (!WindowShouldClose())
     { // true when X or ESC is pressed
@@ -41,10 +58,38 @@ int main()
             paddle.x = SCREEN_W - paddle.width;
         }
 
+        // move the ball
+        ball.pos.x += ball.vel.x * dt;
+        ball.pos.y += ball.vel.y * dt;
+
+        // bounce off left, right and top walls
+        if (ball.pos.x < ball.radius)
+        {
+            ball.pos.x = ball.radius;
+            ball.vel.x = -ball.vel.x;
+        }
+        if (ball.pos.x > SCREEN_W - ball.radius)
+        {
+            ball.pos.x = SCREEN_W - ball.radius;
+            ball.vel.x = -ball.vel.x;
+        }
+        if (ball.pos.y < ball.radius)
+        {
+            ball.pos.y = ball.radius;
+            ball.vel.y = -ball.vel.y;
+        }
+
+        // fell off the bottom: start over
+        if (ball.pos.y > SCREEN_H + ball.radius)
+        {
+            ball = MakeBall();
+        }
+
         // --- draw (Love2D: love.draw) ---
         BeginDrawing();
         ClearBackground(RAYWHITE);
         DrawRectangleRec(paddle, DARKBLUE);
+        DrawCircleV(ball.pos, ball.radius, MAROON);
         DrawFPS(10, 10);
         EndDrawing();
     }
