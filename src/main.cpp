@@ -1,4 +1,5 @@
 #include "raylib.h"
+#include <cmath> // sinf, cosf
 
 constexpr int SCREEN_W = 800;
 constexpr int SCREEN_H = 600;
@@ -9,6 +10,8 @@ constexpr float PADDLE_Y = SCREEN_H - 40.0f;
 constexpr float PADDLE_SPEED = 500.0f; // pixels per second
 
 constexpr float BALL_RADIUS = 8.0f;
+constexpr float BALL_SPEED = 360.0f;     // total speed after a paddle hit, pixels per second
+constexpr float MAX_BOUNCE_ANGLE = 60.0f; // degrees from straight up, at the paddle's edge
 
 struct Ball
 {
@@ -77,6 +80,28 @@ int main()
         {
             ball.pos.y = ball.radius;
             ball.vel.y = -ball.vel.y;
+        }
+
+        // bounce off the paddle (only while moving down, so it can't get stuck inside)
+        if (ball.vel.y > 0.0f && CheckCollisionCircleRec(ball.pos, ball.radius, paddle))
+        {
+            // where on the paddle: -1 = left edge, 0 = center, +1 = right edge
+            float paddleCenter = paddle.x + paddle.width / 2.0f;
+            float hit = (ball.pos.x - paddleCenter) / (paddle.width / 2.0f);
+            if (hit < -1.0f)
+            {
+                hit = -1.0f;
+            }
+            if (hit > 1.0f)
+            {
+                hit = 1.0f;
+            }
+
+            float angle = hit * MAX_BOUNCE_ANGLE * DEG2RAD; // 0 = straight up
+            ball.vel.x = sinf(angle) * BALL_SPEED;
+            ball.vel.y = -cosf(angle) * BALL_SPEED;
+
+            ball.pos.y = paddle.y - ball.radius; // sit on top of the paddle
         }
 
         // fell off the bottom: start over
