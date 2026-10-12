@@ -22,18 +22,33 @@ constexpr float BRICK_GAP = 5.0f;
 constexpr float BRICK_TOP = 60.0f; // space above the first row, for the HUD
 constexpr int BRICK_POINTS = 10;
 
+enum class GameState
+{
+    Title,
+    Playing,
+    GameOver,
+    Win
+};
+
 struct Ball
 {
     Vector2 pos; // center
     Vector2 vel; // pixels per second
     float radius;
+    bool isStuck;
 };
 
-// A fresh ball in the middle of the screen, heading up and to the right
-Ball MakeBall()
+// A fresh ball is stuck to the paddle, ready to launch
+Ball MakeBall(float paddleCenter)
 {
-    Ball ball = {{SCREEN_W / 2.0f, SCREEN_H / 2.0f}, {200.0f, -300.0f}, BALL_RADIUS};
+    Ball ball = {{paddleCenter, SCREEN_H - 48.0f}, {0.0f, 0.0f}, BALL_RADIUS, true};
     return ball;
+}
+
+void LaunchBall(Ball &ball)
+{
+    ball.isStuck = false;
+    ball.vel = {0.0f, -BALL_SPEED};
 }
 
 struct Brick
@@ -67,6 +82,17 @@ std::vector<Brick> MakeBricks()
     return bricks;
 }
 
+void DrawCenteredText(const char *text, int y, int fontSize, Color color)
+{
+    int textWidth = MeasureText(text, fontSize);
+    DrawText(text, (SCREEN_W - textWidth) / 2, y, fontSize, color);
+}
+
+float GetPaddleCenter(const Rectangle &paddle)
+{
+    return paddle.x + paddle.width / 2.0f;
+}
+
 int main()
 {
     // ----- Load -----
@@ -75,122 +101,198 @@ int main()
 
     // x, y, width, height (x/y is the top-left corner)
     Rectangle paddle = {(SCREEN_W - PADDLE_W) / 2.0f, PADDLE_Y, PADDLE_W, PADDLE_H};
-    Ball ball = MakeBall();
+    Ball ball = MakeBall(GetPaddleCenter(paddle));
     std::vector<Brick> bricks = MakeBricks();
+
+    int lives = 3;
     int score = 0;
+    int destroyedBricks = 0;
+    int totalBricks = bricks.size();
+
+    GameState state = GameState::Title;
 
     while (!WindowShouldClose())
     { // true when X or ESC is pressed
         // ----- Update -----
         float dt = GetFrameTime(); // seconds since last frame
 
-        if (IsKeyDown(KEY_LEFT) || IsKeyDown(KEY_A))
+        switch (state)
         {
-            paddle.x -= PADDLE_SPEED * dt;
-        }
-        if (IsKeyDown(KEY_RIGHT) || IsKeyDown(KEY_D))
-        {
-            paddle.x += PADDLE_SPEED * dt;
-        }
-
-        // clamp to the window
-        if (paddle.x < 0.0f)
-        {
-            paddle.x = 0.0f;
-        }
-        if (paddle.x > SCREEN_W - paddle.width)
-        {
-            paddle.x = SCREEN_W - paddle.width;
-        }
-
-        // move the ball
-        ball.pos.x += ball.vel.x * dt;
-        ball.pos.y += ball.vel.y * dt;
-
-        // bounce off left, right and top walls
-        if (ball.pos.x < ball.radius)
-        {
-            ball.pos.x = ball.radius;
-            ball.vel.x = -ball.vel.x;
-        }
-        if (ball.pos.x > SCREEN_W - ball.radius)
-        {
-            ball.pos.x = SCREEN_W - ball.radius;
-            ball.vel.x = -ball.vel.x;
-        }
-        if (ball.pos.y < ball.radius)
-        {
-            ball.pos.y = ball.radius;
-            ball.vel.y = -ball.vel.y;
-        }
-
-        // bounce off the paddle (only while moving down, so it can't get stuck inside)
-        if (ball.vel.y > 0.0f && CheckCollisionCircleRec(ball.pos, ball.radius, paddle))
-        {
-            // where on the paddle: -1 = left edge, 0 = center, +1 = right edge
-            float paddleCenter = paddle.x + paddle.width / 2.0f;
-            float hit = (ball.pos.x - paddleCenter) / (paddle.width / 2.0f);
-            if (hit < -1.0f)
+        case GameState::Title:
+            if (IsKeyPressed(KEY_SPACE))
             {
-                hit = -1.0f;
+                state = GameState::Playing;
             }
-            if (hit > 1.0f)
+            break;
+
+        case GameState::Playing:
+            if (IsKeyDown(KEY_LEFT) || IsKeyDown(KEY_A))
             {
-                hit = 1.0f;
+                paddle.x -= PADDLE_SPEED * dt;
+            }
+            if (IsKeyDown(KEY_RIGHT) || IsKeyDown(KEY_D))
+            {
+                paddle.x += PADDLE_SPEED * dt;
+            }
+            if (IsKeyPressed(KEY_SPACE) && ball.isStuck)
+            {
+                LaunchBall(ball);
             }
 
-            float angle = hit * MAX_BOUNCE_ANGLE * DEG2RAD; // 0 = straight up
-            ball.vel.x = sinf(angle) * BALL_SPEED;
-            ball.vel.y = -cosf(angle) * BALL_SPEED;
-
-            ball.pos.y = paddle.y - ball.radius; // sit on top of the paddle
-        }
-
-        // bounce off bricks (at most one brick per frame)
-        for (Brick &brick : bricks)
-        {
-            if (!brick.active)
+            // clamp to the window
+            if (paddle.x < 0.0f)
             {
-                continue;
+                paddle.x = 0.0f;
             }
-            if (CheckCollisionCircleRec(ball.pos, ball.radius, brick.rect))
+            if (paddle.x > SCREEN_W - paddle.width)
             {
-                brick.active = false;
-                score += BRICK_POINTS;
+                paddle.x = SCREEN_W - paddle.width;
+            }
 
-                // ball center above/below the brick -> hit top or bottom, otherwise a side
-                if (ball.pos.x >= brick.rect.x && ball.pos.x <= brick.rect.x + brick.rect.width)
+            if (ball.isStuck)
+            {
+                ball.pos.x = GetPaddleCenter(paddle);
+                ball.pos.y = paddle.y - ball.radius;
+            }
+
+            // move the ball
+            ball.pos.x += ball.vel.x * dt;
+            ball.pos.y += ball.vel.y * dt;
+
+            // bounce off left, right and top walls
+            if (ball.pos.x < ball.radius)
+            {
+                ball.pos.x = ball.radius;
+                ball.vel.x = -ball.vel.x;
+            }
+            if (ball.pos.x > SCREEN_W - ball.radius)
+            {
+                ball.pos.x = SCREEN_W - ball.radius;
+                ball.vel.x = -ball.vel.x;
+            }
+            if (ball.pos.y < ball.radius)
+            {
+                ball.pos.y = ball.radius;
+                ball.vel.y = -ball.vel.y;
+            }
+
+            // bounce off the paddle (only while moving down, so it can't get stuck inside)
+            if (ball.vel.y > 0.0f && CheckCollisionCircleRec(ball.pos, ball.radius, paddle))
+            {
+                // where on the paddle: -1 = left edge, 0 = center, +1 = right edge
+                float paddleCenter = GetPaddleCenter(paddle);
+                float hit = (ball.pos.x - paddleCenter) / (paddle.width / 2.0f);
+                if (hit < -1.0f)
                 {
-                    ball.vel.y = -ball.vel.y;
+                    hit = -1.0f;
                 }
-                else
+                if (hit > 1.0f)
                 {
-                    ball.vel.x = -ball.vel.x;
+                    hit = 1.0f;
                 }
-                break;
-            }
-        }
 
-        // fell off the bottom: start over
-        if (ball.pos.y > SCREEN_H + ball.radius)
-        {
-            ball = MakeBall();
+                float angle = hit * MAX_BOUNCE_ANGLE * DEG2RAD; // 0 = straight up
+                ball.vel.x = sinf(angle) * BALL_SPEED;
+                ball.vel.y = -cosf(angle) * BALL_SPEED;
+
+                ball.pos.y = paddle.y - ball.radius; // sit on top of the paddle
+            }
+
+            // bounce off bricks (at most one brick per frame)
+            for (Brick &brick : bricks)
+            {
+                if (!brick.active)
+                {
+                    continue;
+                }
+                if (CheckCollisionCircleRec(ball.pos, ball.radius, brick.rect))
+                {
+                    brick.active = false;
+                    score += BRICK_POINTS;
+                    destroyedBricks++;
+                    if (destroyedBricks >= totalBricks)
+                    {
+                        state = GameState::Win;
+                    }
+
+                    // ball center above/below the brick -> hit top or bottom, otherwise a side
+                    if (ball.pos.x >= brick.rect.x && ball.pos.x <= brick.rect.x + brick.rect.width)
+                    {
+                        ball.vel.y = -ball.vel.y;
+                    }
+                    else
+                    {
+                        ball.vel.x = -ball.vel.x;
+                    }
+                    break;
+                }
+            }
+
+            // fell off the bottom: start over
+            if (ball.pos.y > SCREEN_H + ball.radius)
+            {
+                ball = MakeBall(GetPaddleCenter(paddle));
+                lives--;
+                if (lives <= 0 && state == GameState::Playing)
+                {
+                    state = GameState::GameOver;
+                }
+            }
+            break;
+
+        case GameState::GameOver:
+        case GameState::Win:
+            if (IsKeyPressed(KEY_SPACE))
+            {
+                // reset everything
+                paddle.x = (SCREEN_W - PADDLE_W) / 2.0f;
+                ball = MakeBall(GetPaddleCenter(paddle));
+                bricks = MakeBricks();
+                lives = 3;
+                score = 0;
+                destroyedBricks = 0;
+                totalBricks = bricks.size();
+                state = GameState::Playing;
+            }
+            break;
         }
 
         // ----- Draw -----
         BeginDrawing();
         ClearBackground(RAYWHITE);
-        for (const Brick &brick : bricks)
+        switch (state)
         {
-            if (brick.active)
+        case GameState::Title:
+            DrawCenteredText("Brick Breaker", 250, 40, DARKGRAY);
+            DrawCenteredText("Press SPACE to start", 320, 24, BLUE);
+            break;
+
+        case GameState::Playing:
+            for (const Brick &brick : bricks)
             {
-                DrawRectangleRec(brick.rect, brick.color);
+                if (brick.active)
+                {
+                    DrawRectangleRec(brick.rect, brick.color);
+                }
             }
+            DrawRectangleRec(paddle, DARKBLUE);
+            DrawCircleV(ball.pos, ball.radius, MAROON);
+            DrawText(TextFormat("Lives: %d", lives), 10, 10, 24, DARKGRAY);
+            DrawCenteredText(TextFormat("Score: %d", score), 10, 24, DARKGRAY);
+            DrawFPS(10, SCREEN_H - 24);
+            break;
+
+        case GameState::GameOver:
+            DrawCenteredText("Game Over", 250, 40, RED);
+            DrawCenteredText("Press SPACE to restart", 320, 24, DARKGRAY);
+            break;
+
+        case GameState::Win:
+            DrawCenteredText("You Win!", 250, 40, GREEN);
+            DrawCenteredText("Press SPACE to restart", 320, 24, DARKGRAY);
+            DrawCenteredText(TextFormat("Score: %d", score), 380, 24, DARKGRAY);
+            break;
         }
-        DrawRectangleRec(paddle, DARKBLUE);
-        DrawCircleV(ball.pos, ball.radius, MAROON);
-        DrawText(TextFormat("Score: %d", score), 10, 10, 24, DARKGRAY);
-        DrawFPS(10, SCREEN_H - 24);
         EndDrawing();
     }
 
