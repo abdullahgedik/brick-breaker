@@ -15,5 +15,5 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(raylib)
 
-add_executable(game src/main.cpp)
+add_executable(game src/main.cpp src/game.cpp src/game.h)
 target_link_libraries(game raylib)
