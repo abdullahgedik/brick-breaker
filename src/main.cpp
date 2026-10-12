@@ -93,6 +93,60 @@ float GetPaddleCenter(const Rectangle &paddle)
     return paddle.x + paddle.width / 2.0f;
 }
 
+enum class Side
+{
+    Left,
+    Right,
+    Top,
+    Bottom
+};
+
+// Which side of the rectangle did the ball hit? Call this only when they overlap.
+// The side the ball sticks into the least is the side it came from.
+//
+// useVelocity = true is for rectangles that don't move (bricks). It divides each overlap
+// by the ball's speed on that axis, giving "how long ago did the ball cross this edge".
+// A ball moving almost straight up then always counts as a top/bottom hit, even when
+// it also touches a neighbor's side.
+Side GetHitSide(const Ball &ball, const Rectangle &rect, bool useVelocity)
+{
+    float overlapLeft = (ball.pos.x + ball.radius) - rect.x;
+    float overlapRight = (rect.x + rect.width) - (ball.pos.x - ball.radius);
+    float overlapTop = (ball.pos.y + ball.radius) - rect.y;
+    float overlapBottom = (rect.y + rect.height) - (ball.pos.y - ball.radius);
+
+    if (useVelocity)
+    {
+        // fmaxf keeps the speed at 1 or more, so we never divide by zero
+        float speedX = fmaxf(fabsf(ball.vel.x), 1.0f);
+        float speedY = fmaxf(fabsf(ball.vel.y), 1.0f);
+        overlapLeft /= speedX;
+        overlapRight /= speedX;
+        overlapTop /= speedY;
+        overlapBottom /= speedY;
+    }
+
+    Side side = Side::Left;
+    float smallest = overlapLeft;
+
+    if (overlapRight < smallest)
+    {
+        smallest = overlapRight;
+        side = Side::Right;
+    }
+    if (overlapTop < smallest)
+    {
+        smallest = overlapTop;
+        side = Side::Top;
+    }
+    if (overlapBottom < smallest)
+    {
+        smallest = overlapBottom;
+        side = Side::Bottom;
+    }
+    return side;
+}
+
 int main()
 {
     // ----- Load -----
@@ -176,26 +230,42 @@ int main()
                 ball.vel.y = -ball.vel.y;
             }
 
-            // bounce off the paddle (only while moving down, so it can't get stuck inside)
-            if (ball.vel.y > 0.0f && CheckCollisionCircleRec(ball.pos, ball.radius, paddle))
+            // bounce off the paddle
+            if (!ball.isStuck && CheckCollisionCircleRec(ball.pos, ball.radius, paddle))
             {
-                // where on the paddle: -1 = left edge, 0 = center, +1 = right edge
-                float paddleCenter = GetPaddleCenter(paddle);
-                float hit = (ball.pos.x - paddleCenter) / (paddle.width / 2.0f);
-                if (hit < -1.0f)
-                {
-                    hit = -1.0f;
-                }
-                if (hit > 1.0f)
-                {
-                    hit = 1.0f;
-                }
+                Side side = GetHitSide(ball, paddle, false); // paddle moves too, so overlap only
 
-                float angle = hit * MAX_BOUNCE_ANGLE * DEG2RAD; // 0 = straight up
-                ball.vel.x = sinf(angle) * BALL_SPEED;
-                ball.vel.y = -cosf(angle) * BALL_SPEED;
+                if (side == Side::Top && ball.vel.y > 0.0f) // only while moving down, so it can't get stuck inside
+                {
+                    // where on the paddle: -1 = left edge, 0 = center, +1 = right edge
+                    float paddleCenter = GetPaddleCenter(paddle);
+                    float hit = (ball.pos.x - paddleCenter) / (paddle.width / 2.0f);
+                    if (hit < -1.0f)
+                    {
+                        hit = -1.0f;
+                    }
+                    if (hit > 1.0f)
+                    {
+                        hit = 1.0f;
+                    }
 
-                ball.pos.y = paddle.y - ball.radius; // sit on top of the paddle
+                    float angle = hit * MAX_BOUNCE_ANGLE * DEG2RAD; // 0 = straight up
+                    ball.vel.x = sinf(angle) * BALL_SPEED;
+                    ball.vel.y = -cosf(angle) * BALL_SPEED;
+
+                    ball.pos.y = paddle.y - ball.radius; // sit on top of the paddle
+                }
+                else if (side == Side::Left)
+                {
+                    ball.pos.x = paddle.x - ball.radius; // push out, don't teleport up
+                    ball.vel.x = -fabsf(ball.vel.x);     // always away from the paddle
+                }
+                else if (side == Side::Right)
+                {
+                    ball.pos.x = paddle.x + paddle.width + ball.radius;
+                    ball.vel.x = fabsf(ball.vel.x);
+                }
+                // Side::Bottom (ball under the paddle) is ignored
             }
 
             // bounce off bricks (at most one brick per frame)
@@ -215,14 +285,21 @@ int main()
                         state = GameState::Win;
                     }
 
-                    // ball center above/below the brick -> hit top or bottom, otherwise a side
-                    if (ball.pos.x >= brick.rect.x && ball.pos.x <= brick.rect.x + brick.rect.width)
+                    // send the ball away from the side it hit
+                    switch (GetHitSide(ball, brick.rect, true))
                     {
-                        ball.vel.y = -ball.vel.y;
-                    }
-                    else
-                    {
-                        ball.vel.x = -ball.vel.x;
+                    case Side::Top:
+                        ball.vel.y = -fabsf(ball.vel.y);
+                        break;
+                    case Side::Bottom:
+                        ball.vel.y = fabsf(ball.vel.y);
+                        break;
+                    case Side::Left:
+                        ball.vel.x = -fabsf(ball.vel.x);
+                        break;
+                    case Side::Right:
+                        ball.vel.x = fabsf(ball.vel.x);
+                        break;
                     }
                     break;
                 }
