@@ -2,6 +2,12 @@
 #include "raymath.h"
 #include <algorithm>
 #include <cmath>
+#include <string>
+
+static std::string HighScorePath()
+{
+    return std::string(GetApplicationDirectory()) + "highscore.txt";
+}
 
 Ball MakeBall(float paddleCenter)
 {
@@ -42,6 +48,39 @@ void DrawCenteredText(const char *text, int y, int fontSize, Color color)
 {
     int textWidth = MeasureText(text, fontSize);
     DrawText(text, (SCREEN_W - textWidth) / 2, y, fontSize, color);
+}
+
+void DrawRightText(const char *text, int y, int fontSize, Color color)
+{
+    int textWidth = MeasureText(text, fontSize);
+    DrawText(text, SCREEN_W - textWidth - 10, y, fontSize, color);
+}
+
+int LoadHighScore()
+{
+    std::string path = HighScorePath();
+    if (!FileExists(path.c_str()))
+    {
+        return 0;
+    }
+
+    char *text = LoadFileText(path.c_str());
+    if (text == nullptr)
+    {
+        return 0;
+    }
+
+    int value = TextToInteger(text);
+    UnloadFileText(text);
+
+    return value > 0 ? value : 0;
+}
+
+void SaveHighScore(int score)
+{
+    std::string path = HighScorePath();
+    std::string text = std::to_string(score);
+    SaveFileText(path.c_str(), text.data());
 }
 
 float GetPaddleCenter(const Rectangle &paddle)

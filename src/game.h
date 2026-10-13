@@ -85,6 +85,12 @@ std::vector<Brick> MakeBricks();
 
 void DrawCenteredText(const char *text, int y, int fontSize, Color color);
 
+void DrawRightText(const char *text, int y, int fontSize, Color color);
+
+int LoadHighScore();
+
+void SaveHighScore(int score);
+
 float GetPaddleCenter(const Rectangle &paddle);
 
 Side GetHitSide(const Ball &ball, const Rectangle &rect, bool useVelocity);

@@ -16,6 +16,7 @@ This is a tutorial project I built for myself to get into raylib and to practise
 - Game states: title, playing, game over and win, with restart
 - Ball that speeds up as bricks break
 - Particle effects when a brick breaks and when the ball is lost
+- High score that is saved to a small text file (`highscore.txt`, next to the executable) and loaded the next time you start the game
 
 ## Controls
 
@@ -60,9 +61,9 @@ brick-breaker/
 - Structs, `std::vector`, references and splitting code into a header and a source file
 - Circle-versus-rectangle collision and choosing which side was hit
 - A simple state machine with an `enum class`
+- Reading and writing a file with raylib's `LoadFileText` / `UnloadFileText` / `SaveFileText`
 
 ## Ideas not done yet
 
-- Saving a high score to a file
 - Sound effects
 - Splitting each frame into smaller steps so a very fast ball can never skip through a brick

@@ -5,6 +5,3 @@ build/
 .vscode/*
 !.vscode/settings.json
 !.vscode/extensions.json
-
-# Claude Code
-.claude/

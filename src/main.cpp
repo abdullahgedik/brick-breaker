@@ -17,6 +17,8 @@ int main()
     int score = 0;
     int destroyedBricks = 0;
     int totalBricks = bricks.size();
+    int highScore = LoadHighScore();
+    bool newHighScore = false;
 
     GameState state = GameState::Title;
 
@@ -61,6 +63,11 @@ int main()
             BallUpdate result = UpdateBall(ball, paddle, bricks, particles, dt);
 
             score += result.bricksHit * BRICK_POINTS;
+            if (score > highScore)
+            {
+                highScore = score;
+                newHighScore = true;
+            }
             destroyedBricks += result.bricksHit;
             if (destroyedBricks >= totalBricks)
             {
@@ -78,6 +85,11 @@ int main()
                 }
             }
 
+            if (state != GameState::Playing)
+            {
+                SaveHighScore(highScore);
+            }
+
             UpdateParticles(particles, dt);
             break;
         }
@@ -92,6 +104,7 @@ int main()
                 particles.clear();
                 lives = 3;
                 score = 0;
+                newHighScore = false;
                 destroyedBricks = 0;
                 totalBricks = bricks.size();
                 state = GameState::Playing;
@@ -109,6 +122,7 @@ int main()
         case GameState::Title:
             DrawCenteredText("Brick Breaker", 250, 40, DARKGRAY);
             DrawCenteredText("Press SPACE to start", 320, 24, BLUE);
+            DrawCenteredText(TextFormat("Best: %d", highScore), 380, 24, DARKGRAY);
             break;
 
         case GameState::Playing:
@@ -124,6 +138,7 @@ int main()
             DrawCircleV(ball.pos, ball.radius, MAROON);
             DrawText(TextFormat("Lives: %d", lives), 10, 10, 24, DARKGRAY);
             DrawCenteredText(TextFormat("Score: %d", score), 10, 24, DARKGRAY);
+            DrawRightText(TextFormat("Best: %d", highScore), 10, 24, DARKGRAY);
             DrawFPS(10, SCREEN_H - 24);
             break;
 
@@ -132,6 +147,14 @@ int main()
             DrawCenteredText("Game Over", 250, 40, RED);
             DrawCenteredText("Press SPACE to restart", 320, 24, DARKGRAY);
             DrawCenteredText(TextFormat("Score: %d", score), 380, 24, DARKGRAY);
+            if (newHighScore)
+            {
+                DrawCenteredText("New high score!", 420, 24, GOLD);
+            }
+            else
+            {
+                DrawCenteredText(TextFormat("Best: %d", highScore), 420, 24, DARKGRAY);
+            }
             break;
 
         case GameState::Win:
@@ -139,11 +162,20 @@ int main()
             DrawCenteredText("You Win!", 250, 40, GREEN);
             DrawCenteredText("Press SPACE to restart", 320, 24, DARKGRAY);
             DrawCenteredText(TextFormat("Score: %d", score), 380, 24, DARKGRAY);
+            if (newHighScore)
+            {
+                DrawCenteredText("New high score!", 420, 24, GOLD);
+            }
+            else
+            {
+                DrawCenteredText(TextFormat("Best: %d", highScore), 420, 24, DARKGRAY);
+            }
             break;
         }
         EndDrawing();
     }
 
+    SaveHighScore(highScore);
     CloseWindow();
     return 0;
 }
