@@ -24,6 +24,13 @@ constexpr float BRICK_GAP = 5.0f;
 constexpr float BRICK_TOP = 60.0f;
 constexpr int BRICK_POINTS = 10;
 
+constexpr int PARTICLE_COUNT = 14;
+constexpr int PARTICLE_MIN_SPEED = 80;
+constexpr int PARTICLE_MAX_SPEED = 220;
+constexpr float PARTICLE_LIFE = 0.6f;
+constexpr float PARTICLE_SIZE = 6.0f;
+constexpr float PARTICLE_GRAVITY = 500.0f;
+
 enum class GameState
 {
     Title,
@@ -56,6 +63,20 @@ struct Brick
     bool active;
 };
 
+struct Particle
+{
+    Vector2 pos;
+    Vector2 vel;
+    Color color;
+    float life;
+};
+
+struct BallUpdate
+{
+    int bricksHit;
+    bool fellOff;
+};
+
 Ball MakeBall(float paddleCenter);
 
 void LaunchBall(Ball &ball);
@@ -67,3 +88,11 @@ void DrawCenteredText(const char *text, int y, int fontSize, Color color);
 float GetPaddleCenter(const Rectangle &paddle);
 
 Side GetHitSide(const Ball &ball, const Rectangle &rect, bool useVelocity);
+
+BallUpdate UpdateBall(Ball &ball, const Rectangle &paddle, std::vector<Brick> &bricks, std::vector<Particle> &particles, float dt);
+
+void SpawnParticles(std::vector<Particle> &particles, Vector2 center, Color color, int minAngle, int maxAngle);
+
+void UpdateParticles(std::vector<Particle> &particles, float dt);
+
+void DrawParticles(const std::vector<Particle> &particles);

@@ -1,6 +1,5 @@
 #include "game.h"
 #include <cmath>
-#include "raymath.h"
 
 int main()
 {
@@ -12,6 +11,7 @@ int main()
     Rectangle paddle = {(SCREEN_W - PADDLE_W) / 2.0f, PADDLE_Y, PADDLE_W, PADDLE_H};
     Ball ball = MakeBall(GetPaddleCenter(paddle));
     std::vector<Brick> bricks = MakeBricks();
+    std::vector<Particle> particles;
 
     int lives = 3;
     int score = 0;
@@ -35,6 +35,7 @@ int main()
             break;
 
         case GameState::Playing:
+        {
             if (IsKeyDown(KEY_LEFT) || IsKeyDown(KEY_A))
             {
                 paddle.x -= PADDLE_SPEED * dt;
@@ -57,106 +58,18 @@ int main()
                 paddle.x = SCREEN_W - paddle.width;
             }
 
-            if (ball.isStuck)
+            BallUpdate result = UpdateBall(ball, paddle, bricks, particles, dt);
+
+            score += result.bricksHit * BRICK_POINTS;
+            destroyedBricks += result.bricksHit;
+            if (destroyedBricks >= totalBricks)
             {
-                ball.pos.x = GetPaddleCenter(paddle);
-                ball.pos.y = paddle.y - ball.radius;
+                state = GameState::Win;
             }
 
-            ball.pos.x += ball.vel.x * dt;
-            ball.pos.y += ball.vel.y * dt;
-
-            if (ball.pos.x < ball.radius)
+            if (result.fellOff)
             {
-                ball.pos.x = ball.radius;
-                ball.vel.x = -ball.vel.x;
-            }
-            if (ball.pos.x > SCREEN_W - ball.radius)
-            {
-                ball.pos.x = SCREEN_W - ball.radius;
-                ball.vel.x = -ball.vel.x;
-            }
-            if (ball.pos.y < ball.radius)
-            {
-                ball.pos.y = ball.radius;
-                ball.vel.y = -ball.vel.y;
-            }
-
-            if (!ball.isStuck && CheckCollisionCircleRec(ball.pos, ball.radius, paddle))
-            {
-                Side side = GetHitSide(ball, paddle, false);
-
-                if (side == Side::Top && ball.vel.y > 0.0f)
-                {
-                    float paddleCenter = GetPaddleCenter(paddle);
-                    float hit = (ball.pos.x - paddleCenter) / (paddle.width / 2.0f);
-                    if (hit < -1.0f)
-                    {
-                        hit = -1.0f;
-                    }
-                    if (hit > 1.0f)
-                    {
-                        hit = 1.0f;
-                    }
-
-                    float angle = hit * MAX_BOUNCE_ANGLE * DEG2RAD;
-                    ball.vel.x = sinf(angle) * ball.speed;
-                    ball.vel.y = -cosf(angle) * ball.speed;
-
-                    ball.pos.y = paddle.y - ball.radius;
-                }
-                else if (side == Side::Left)
-                {
-                    ball.pos.x = paddle.x - ball.radius;
-                    ball.vel.x = -fabsf(ball.vel.x);
-                }
-                else if (side == Side::Right)
-                {
-                    ball.pos.x = paddle.x + paddle.width + ball.radius;
-                    ball.vel.x = fabsf(ball.vel.x);
-                }
-            }
-
-            for (Brick &brick : bricks)
-            {
-                if (!brick.active)
-                {
-                    continue;
-                }
-                if (CheckCollisionCircleRec(ball.pos, ball.radius, brick.rect))
-                {
-                    brick.active = false;
-                    score += BRICK_POINTS;
-                    destroyedBricks++;
-                    if (destroyedBricks >= totalBricks)
-                    {
-                        state = GameState::Win;
-                    }
-
-                    ball.speed = fminf(ball.speed + BALL_SPEED_STEP, BALL_SPEED_MAX);
-                    ball.vel = Vector2Scale(Vector2Normalize(ball.vel), ball.speed);
-
-                    switch (GetHitSide(ball, brick.rect, true))
-                    {
-                    case Side::Top:
-                        ball.vel.y = -fabsf(ball.vel.y);
-                        break;
-                    case Side::Bottom:
-                        ball.vel.y = fabsf(ball.vel.y);
-                        break;
-                    case Side::Left:
-                        ball.vel.x = -fabsf(ball.vel.x);
-                        break;
-                    case Side::Right:
-                        ball.vel.x = fabsf(ball.vel.x);
-                        break;
-                    }
-                    break;
-                }
-            }
-
-            if (ball.pos.y > SCREEN_H + ball.radius)
-            {
+                SpawnParticles(particles, {ball.pos.x, SCREEN_H - 2.0f}, MAROON, 200, 340);
                 ball = MakeBall(GetPaddleCenter(paddle));
                 lives--;
                 if (lives <= 0 && state == GameState::Playing)
@@ -164,7 +77,10 @@ int main()
                     state = GameState::GameOver;
                 }
             }
+
+            UpdateParticles(particles, dt);
             break;
+        }
 
         case GameState::GameOver:
         case GameState::Win:
@@ -173,12 +89,15 @@ int main()
                 paddle.x = (SCREEN_W - PADDLE_W) / 2.0f;
                 ball = MakeBall(GetPaddleCenter(paddle));
                 bricks = MakeBricks();
+                particles.clear();
                 lives = 3;
                 score = 0;
                 destroyedBricks = 0;
                 totalBricks = bricks.size();
                 state = GameState::Playing;
             }
+
+            UpdateParticles(particles, dt);
             break;
         }
 
@@ -200,6 +119,7 @@ int main()
                     DrawRectangleRec(brick.rect, brick.color);
                 }
             }
+            DrawParticles(particles);
             DrawRectangleRec(paddle, DARKBLUE);
             DrawCircleV(ball.pos, ball.radius, MAROON);
             DrawText(TextFormat("Lives: %d", lives), 10, 10, 24, DARKGRAY);
@@ -208,11 +128,14 @@ int main()
             break;
 
         case GameState::GameOver:
+            DrawParticles(particles);
             DrawCenteredText("Game Over", 250, 40, RED);
             DrawCenteredText("Press SPACE to restart", 320, 24, DARKGRAY);
+            DrawCenteredText(TextFormat("Score: %d", score), 380, 24, DARKGRAY);
             break;
 
         case GameState::Win:
+            DrawParticles(particles);
             DrawCenteredText("You Win!", 250, 40, GREEN);
             DrawCenteredText("Press SPACE to restart", 320, 24, DARKGRAY);
             DrawCenteredText(TextFormat("Score: %d", score), 380, 24, DARKGRAY);
