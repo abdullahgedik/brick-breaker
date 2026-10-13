@@ -1,5 +1,6 @@
 #include "game.h"
-#include <cmath> // sinf, cosf, fabsf
+#include <cmath>
+#include "raymath.h"
 
 int main()
 {
@@ -8,7 +9,6 @@ int main()
     InitWindow(SCREEN_W, SCREEN_H, "Brick Breaker");
     SetTargetFPS(60);
 
-    // x, y, width, height (x/y is the top-left corner)
     Rectangle paddle = {(SCREEN_W - PADDLE_W) / 2.0f, PADDLE_Y, PADDLE_W, PADDLE_H};
     Ball ball = MakeBall(GetPaddleCenter(paddle));
     std::vector<Brick> bricks = MakeBricks();
@@ -21,9 +21,9 @@ int main()
     GameState state = GameState::Title;
 
     while (!WindowShouldClose())
-    { // true when X or ESC is pressed
+    {
         // ----- Update -----
-        float dt = GetFrameTime(); // seconds since last frame
+        float dt = fminf(GetFrameTime(), 1.0f / 30.0f);
 
         switch (state)
         {
@@ -48,7 +48,6 @@ int main()
                 LaunchBall(ball);
             }
 
-            // clamp to the window
             if (paddle.x < 0.0f)
             {
                 paddle.x = 0.0f;
@@ -64,11 +63,9 @@ int main()
                 ball.pos.y = paddle.y - ball.radius;
             }
 
-            // move the ball
             ball.pos.x += ball.vel.x * dt;
             ball.pos.y += ball.vel.y * dt;
 
-            // bounce off left, right and top walls
             if (ball.pos.x < ball.radius)
             {
                 ball.pos.x = ball.radius;
@@ -85,14 +82,12 @@ int main()
                 ball.vel.y = -ball.vel.y;
             }
 
-            // bounce off the paddle
             if (!ball.isStuck && CheckCollisionCircleRec(ball.pos, ball.radius, paddle))
             {
-                Side side = GetHitSide(ball, paddle, false); // paddle moves too, so overlap only
+                Side side = GetHitSide(ball, paddle, false);
 
-                if (side == Side::Top && ball.vel.y > 0.0f) // only while moving down, so it can't get stuck inside
+                if (side == Side::Top && ball.vel.y > 0.0f)
                 {
-                    // where on the paddle: -1 = left edge, 0 = center, +1 = right edge
                     float paddleCenter = GetPaddleCenter(paddle);
                     float hit = (ball.pos.x - paddleCenter) / (paddle.width / 2.0f);
                     if (hit < -1.0f)
@@ -104,26 +99,24 @@ int main()
                         hit = 1.0f;
                     }
 
-                    float angle = hit * MAX_BOUNCE_ANGLE * DEG2RAD; // 0 = straight up
-                    ball.vel.x = sinf(angle) * BALL_SPEED;
-                    ball.vel.y = -cosf(angle) * BALL_SPEED;
+                    float angle = hit * MAX_BOUNCE_ANGLE * DEG2RAD;
+                    ball.vel.x = sinf(angle) * ball.speed;
+                    ball.vel.y = -cosf(angle) * ball.speed;
 
-                    ball.pos.y = paddle.y - ball.radius; // sit on top of the paddle
+                    ball.pos.y = paddle.y - ball.radius;
                 }
                 else if (side == Side::Left)
                 {
-                    ball.pos.x = paddle.x - ball.radius; // push out, don't teleport up
-                    ball.vel.x = -fabsf(ball.vel.x);     // always away from the paddle
+                    ball.pos.x = paddle.x - ball.radius;
+                    ball.vel.x = -fabsf(ball.vel.x);
                 }
                 else if (side == Side::Right)
                 {
                     ball.pos.x = paddle.x + paddle.width + ball.radius;
                     ball.vel.x = fabsf(ball.vel.x);
                 }
-                // Side::Bottom (ball under the paddle) is ignored
             }
 
-            // bounce off bricks (at most one brick per frame)
             for (Brick &brick : bricks)
             {
                 if (!brick.active)
@@ -140,7 +133,9 @@ int main()
                         state = GameState::Win;
                     }
 
-                    // send the ball away from the side it hit
+                    ball.speed = fminf(ball.speed + BALL_SPEED_STEP, BALL_SPEED_MAX);
+                    ball.vel = Vector2Scale(Vector2Normalize(ball.vel), ball.speed);
+
                     switch (GetHitSide(ball, brick.rect, true))
                     {
                     case Side::Top:
@@ -160,7 +155,6 @@ int main()
                 }
             }
 
-            // fell off the bottom: start over
             if (ball.pos.y > SCREEN_H + ball.radius)
             {
                 ball = MakeBall(GetPaddleCenter(paddle));
@@ -176,7 +170,6 @@ int main()
         case GameState::Win:
             if (IsKeyPressed(KEY_SPACE))
             {
-                // reset everything
                 paddle.x = (SCREEN_W - PADDLE_W) / 2.0f;
                 ball = MakeBall(GetPaddleCenter(paddle));
                 bricks = MakeBricks();

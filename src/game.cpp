@@ -1,16 +1,16 @@
 #include "game.h"
-#include <cmath> // fabsf, fmaxf
+#include <cmath>
 
 Ball MakeBall(float paddleCenter)
 {
-    Ball ball = {{paddleCenter, SCREEN_H - 48.0f}, {0.0f, 0.0f}, BALL_RADIUS, true};
+    Ball ball = {{paddleCenter, SCREEN_H - 48.0f}, {0.0f, 0.0f}, BALL_RADIUS, true, BALL_SPEED};
     return ball;
 }
 
 void LaunchBall(Ball &ball)
 {
     ball.isStuck = false;
-    ball.vel = {0.0f, -BALL_SPEED};
+    ball.vel = {0.0f, -ball.speed};
 }
 
 std::vector<Brick> MakeBricks()
@@ -56,7 +56,6 @@ Side GetHitSide(const Ball &ball, const Rectangle &rect, bool useVelocity)
 
     if (useVelocity)
     {
-        // fmaxf keeps the speed at 1 or more, so we never divide by zero
         float speedX = fmaxf(fabsf(ball.vel.x), 1.0f);
         float speedY = fmaxf(fabsf(ball.vel.y), 1.0f);
         overlapLeft /= speedX;
